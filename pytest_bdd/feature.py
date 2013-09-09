@@ -25,7 +25,7 @@ one line.
 """
 import re  # pragma: no cover
 
-from pytest_bdd.types import SCENARIO, GIVEN, WHEN, THEN  # pragma: no cover
+from pytest_bdd.types import BACKGROUND, SCENARIO, GIVEN, WHEN, THEN  # pragma: no cover
 
 
 class FeatureError(Exception):  # pragma: no cover
@@ -44,6 +44,7 @@ features = {}  # pragma: no cover
 
 
 STEP_PREFIXES = {  # pragma: no cover
+    'Background: ': BACKGROUND,
     'Scenario: ': SCENARIO,
     'Given ': GIVEN,
     'When ': WHEN,
@@ -104,6 +105,7 @@ def remove_prefix(line):
 
 class Feature(object):
     """Feature."""
+    background = None
 
     def __init__(self, filename):
         """Parse the feature file.
@@ -126,16 +128,17 @@ class Feature(object):
 
                 mode = get_step_type(line) or mode
 
-                if mode == GIVEN and prev_mode not in (GIVEN, SCENARIO):
-                    raise FeatureError('Given steps must be the first in withing the Scenario',
+                if mode == GIVEN and prev_mode not in (GIVEN, SCENARIO, BACKGROUND):
+                    raise FeatureError('Given steps must be the first in within the Scenario or Background',
                                        line_number, line)
 
-                if mode == WHEN and prev_mode not in (SCENARIO, GIVEN, WHEN):
-                    raise FeatureError('When steps must be the first or follow Given steps',
+                if mode == WHEN and prev_mode not in (SCENARIO, GIVEN, WHEN, BACKGROUND):
+                    raise FeatureError('When steps must be the first or follow Given steps, ' +
+                                       'and cannot be put in a Background',
                                        line_number, line)
 
-                if mode == THEN and prev_mode not in (GIVEN, WHEN, THEN):
-                    raise FeatureError('Then steps must follow Given or When steps',
+                if mode == THEN and prev_mode not in (GIVEN, WHEN, THEN, BACKGROUND):
+                    raise FeatureError('Then steps must follow Given or When steps, and cannot be put in a Background',
                                        line_number, line)
 
                 prev_mode = mode
@@ -145,6 +148,16 @@ class Feature(object):
 
                 if mode == SCENARIO:
                     self.scenarios[line] = scenario = Scenario(line)
+
+                elif mode == BACKGROUND and self.background:
+                    raise FeatureError('Background steps should be the first in a feature file.')
+
+                elif mode == BACKGROUND:
+                    self.background = Background(line)
+
+                elif prev_mode == BACKGROUND:
+                    self.background.add_step(line)
+
                 else:
                     scenario.add_step(line)
 
@@ -180,3 +193,12 @@ class Scenario(object):
         """Add step."""
         self.params.update(get_step_params(step))
         self.steps.append(step)
+
+
+class Background(Scenario):
+    """Background."""
+
+    def itersteps(self):
+        """Yield every step."""
+        for step in self.steps:
+            yield step

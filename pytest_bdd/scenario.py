@@ -53,6 +53,13 @@ def scenario(feature_name, scenario_name):
                     """Should resolve params: {2}, but resolved only: {3}.""".format(
                     scenario_name, feature_name, sorted(scenario.params), sorted(resolved_params)))
 
+            # Execute background steps if any
+            if feature.background:
+                for step in feature.background.itersteps():
+                    step_func = request.getfuncargvalue(step)
+                    kwargs = dict((arg, request.getfuncargvalue(arg)) for arg in inspect.getargspec(step_func).args)
+                    step_func(**kwargs)
+
             # Execute scenario's steps
             for step in scenario.steps:
                 step_func = request.getfuncargvalue(step)
